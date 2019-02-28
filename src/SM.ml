@@ -23,7 +23,30 @@ type config = int list * Syntax.Stmt.config
 
    Takes a configuration and a program, and returns a configuration as a result
  *)                         
-let eval _ = failwith "Not yet implemented"
+let rec eval_iter (stack, (s, i, o)) program = match program with
+                                      | BINOP op -> (match stack with
+                                                    | y::x::tail -> ([Syntax.Expr.evalOp op x y] @ tail, (s, i, o))
+                                                    | _ -> failwith "Empty stack"
+                                                    )
+                                      | CONST c -> ([c] @ stack, (s, i, o))
+                                      | READ -> (match i with
+                                            | head :: tail -> ([head] @ stack, (s, tail, o))
+                                            | _ -> failwith "bad istream"
+                                            )
+                                      | WRITE -> (match stack with 
+                                                | head :: tail -> (tail, (s, i, o @ [head]))
+                                                | _ -> failwith "Empty stack"
+                                                 )
+                                      | LD x -> ([s x] @ stack, (s, i, o))
+                                      | ST x -> (match stack with 
+                                                | head::tail -> (tail, (Syntax.Expr.update x head s, i, o))
+                                                | _ -> failwith "Empty stack"
+                                                )
+
+
+                   
+                                                        
+let eval configuration program = List.fold_left eval_iter configuration program                                     
 
 (* Top-level evaluation
 
@@ -41,4 +64,16 @@ let run i p = let (_, (_, _, o)) = eval ([], (Syntax.Expr.empty, i, [])) p in o
    stack machine
  *)
 
-let compile _ = failwith "Not yet implemented"
+let rec compile statement = 
+    let rec compile_expr expr = match expr with
+                            | Syntax.Expr.Const c -> [CONST c]
+                            | Syntax.Expr.Var   n -> [LD n]
+                            | Syntax.Expr.Binop (op, lhs, rhs) -> compile_expr lhs @ compile_expr rhs @ [BINOP op] in match statement with 
+                            | Syntax.Stmt.Read  x -> [READ; ST x]
+                            | Syntax.Stmt.Write expr -> (compile_expr expr) @ [WRITE]
+                            | Syntax.Stmt.Assign  (n, e) -> (compile_expr e) @ [ST n]
+                            | Syntax.Stmt.Seq (fst, snd) ->   (compile fst) @ (compile snd)  
+
+
+
+

@@ -41,8 +41,30 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
 
+    let intToBool v = v != 0
+
+    let boolToInt v = if v then 1 else 0
+
+    let evalOp operation lhs rhs = match operation with
+	  | "+" -> lhs + rhs
+	  | "-" -> lhs - rhs
+	  | "*" -> lhs * rhs
+	  | "/" -> lhs / rhs
+	  | "%" -> lhs mod rhs
+	  | "<" ->  boolToInt (lhs < rhs)
+	  | ">" ->  boolToInt (lhs > rhs)
+	  | "<=" -> boolToInt (lhs <= rhs)
+	  | ">=" -> boolToInt (lhs >= rhs)
+	  | "==" -> boolToInt (lhs == rhs)
+	  | "!=" -> boolToInt (lhs != rhs)
+	  | "&&" -> boolToInt (intToBool lhs && intToBool rhs)
+	  | "!!" -> boolToInt (intToBool lhs || intToBool rhs)
+	
+    let rec eval state expr = match expr with
+	  | Const value -> value
+	  | Var variable -> state variable
+	  | Binop(op, lhs, rhs) -> evalOp op (eval state lhs) (eval state rhs)	
   end
                     
 (* Simple statements: syntax and sematics *)
@@ -65,8 +87,11 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ = failwith "Not implemented yet"
-                                                         
+    let rec eval (s, i, o) statement = match statement with
+        | Read       v  -> (Expr.update v (List.hd i) s, List.tl i, o)
+        | Write      e  -> (s, i, o @ [Expr.eval s e]) 
+        | Assign (v, e) -> (Expr.update v (Expr.eval s e) s, i, o)
+        | Seq    (fst, snd) -> eval( eval (s, i, o) fst) snd                                                      
   end
 
 (* The top-level definitions *)
