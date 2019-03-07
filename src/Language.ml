@@ -77,7 +77,7 @@ module Expr =
          DECIMAL --- a decimal constant [0-9]+ as a string
    
     *)
-    let ostapBin op = ostap(- $(op)), (fun l r -> Binop(op, l, r))
+    let ostapBin op = ostap($(op)), (fun l r -> Binop(op, l, r))
     
     ostap (
         expr:
@@ -87,15 +87,14 @@ module Expr =
                      [|
                              `Lefta, ["!!"];
                              `Lefta, ["&&"];
-                             `Nona,  ["<"; ">"; "<="; ">="; "=="; "!="];
+                             `Nona,  ["<="; "<"; ">="; ">"; "=="; "!="];
                              `Lefta, ["+"; "-"];
                              `Lefta, ["*"; "/"; "%"];
                      |]
                  ) 
                  primary
              );
-       primary:
-               n: IDENT {Var n} | v: DECIMAL {Const v} | -"(" expr -")"
+       primary: n: IDENT {Var n} | v: DECIMAL {Const v} | -"(" expr -")"
     )
   end
                     
@@ -119,14 +118,15 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let rec eval (s, i, o) statement = match statement with
-        | Read v  -> (match i with 
-          | [] -> failwith(Printf.sprintf "EOF is reached")
-          | hd::tl (Expr.update v (List.hd i) s, List.tl i, o))
-        | Write e  -> (s, i, o @ [Expr.eval s e]) 
-        | Assign (v, e) -> (Expr.update v (Expr.eval s e) s, i, o)
-        | Seq (fst, snd) -> eval( eval (s, i, o) fst) snd 
-
+    let rec eval conf stmt =
+      let (st, i, o) = conf in
+      match stmt with
+      | Read(var) -> (match i with
+        | [] -> failwith (Printf.sprintf "EOF is reached")
+        | head :: tail -> (Expr.update var head st, tail, o))
+      | Write(expr) -> (st, i, o @ [Expr.eval st expr])
+      | Assign(var, expr) -> (Expr.update var (Expr.eval st expr) st, i, o)
+      | Seq(fst, snd) -> eval (eval conf fst) snd
     (* Statement parser *)
       ostap (
       stmnt:

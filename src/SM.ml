@@ -27,23 +27,22 @@ type config = int list * Stmt.config
 let rec eval_iter (stack, (s, i, o)) program = match program with
                                       | BINOP op -> (match stack with
                                                     | y::x::tail -> ([Language.Expr.evalOp op x y] @ tail, (s, i, o))
-                                                    | _ -> conf
+                                                    | _ -> failwith "Empty stack"
                                                     )
                                       | CONST c -> ([c] @ stack, (s, i, o))
                                       | READ -> (match i with
                                             | head :: tail -> ([head] @ stack, (s, tail, o))
-                                            | [] -> failwith (Printf.sprintf "EOF is reached")
+                                            | _ -> failwith "bad istream"
                                             )
                                       | WRITE -> (match stack with 
                                                 | head :: tail -> (tail, (s, i, o @ [head]))
-                                                | _ -> conf
+                                                | _ -> failwith "Empty stack"
                                                  )
                                       | LD x -> ([s x] @ stack, (s, i, o))
                                       | ST x -> (match stack with 
                                                 | head::tail -> (tail, (Language.Expr.update x head s, i, o))
-                                                | _ -> conf
-                                                )
-
+                                                | _ -> failwith "Empty stack"
+)
 
         
 let rec eval configuration program = match program with
@@ -68,10 +67,10 @@ let run p i = let (_, (_, _, o)) = eval ([], (Language.Expr.empty, i, [])) p in 
  
 let rec compile statement = 
     let rec compile_expr expr = match expr with
-                            | Language.Expr.Const c -> [CONST c]
-                            | Language.Expr.Var   n -> [LD n]
+                            | Language.Expr.Const(c) -> [CONST c]
+                            | Language.Expr.Var(n) -> [LD n]
                             | Language.Expr.Binop (op, lhs, rhs) -> compile_expr lhs @ compile_expr rhs @ [BINOP op] in match statement with 
-                            | Language.Stmt.Read  x -> [READ; ST x]
-                            | Language.Stmt.Write expr -> (compile_expr expr) @ [WRITE]
-                            | Language.Stmt.Assign  (n, e) -> (compile_expr e) @ [ST n]
+                            | Language.Stmt.Read(x) -> [READ; ST x]
+                            | Language.Stmt.Write(expr) -> (compile_expr expr) @ [WRITE]
+                            | Language.Stmt.Assign(n, e) -> (compile_expr e) @ [ST n]
 | Language.Stmt.Seq (fst, snd) -> (compile fst) @ (compile snd) 
