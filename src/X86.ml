@@ -114,39 +114,41 @@ let rec compile env code= match code with
       | BINOP op -> 
           let snd, fst, env = env#pop2 in
           
-		  let cmp cmd = let suff = get_operation_suffix cmd
-		  in  match (fst, snd) with 
-			| (S _, S _) -> [Binop("^", eax, eax); Mov (fst, edx); Binop ("cmp", snd, edx); 
-				Set(suff, "%al"); Mov(eax, fst]
-			| _ -> [Binop("^", eax, eax); Binop ("cmp", snd, fst); 
-				Set(suff, "%al"); Mov(eax, fst)]
-		  in	
-		  
-		  let divs cmd = let register = if cmd = "%" then edx else eax in
-              [Mov (fst, eax); Binop("^", edx, edx); Cltd; IDiv snd; Mov(register, res)]
-		  in		 
-		  let insn = match op with 
-			| "+" | "-" | "*" -> [Binop (op, fst, snd)]
-			| "/" | "%" -> divs op
+		  let cmp cmd = env#push fst, [Mov(L 0, eax);
+                                      Binop ("cmp", snd, fst);
+                                      Set(cmd, "%al");
+                                      Mov(eax, snd)]
+          in	
+		  match op with 
+			| "+" | "-" | "*" -> env#push fst, [Binop (get_operation_suffix(op), fst, snd)]
+			| "/" -> let res, env = env#allocate in
+                     env, [Mov (fst, eax); 
+                           Binop("^", edx, edx); 
+                           Cltd; 
+                           IDiv snd; Mov(eax, res)]
+			| "%" -> let res, env = env#allocate in
+			         env, [Mov (fst, eax); 
+			         Cltd; 
+			         IDiv snd; 
+			         Mov(edx, res)] 
 			| ">" | ">=" | "<" | "<=" | "==" | "!=" -> cmp op
-			| "!!" -> [Binop("^", eax, eax); 
+			| "!!" -> env#push fst, [Binop("^", eax, eax); 
 					   Mov (fst, edx); 
 					   Binop ("!!", snd, edx); 
 					   Set("nz", "%al"); 
-					   Mov(eax, res)]
-			| "&&" -> [Binop("^", eax, eax); 
+					   Mov(eax, fst)]
+			| "&&" -> env#push fst, [Binop("^", eax, eax); 
 					   Binop("^", edx, edx); 
 					   Binop("cmp", L 0, fst); 
 					   Set("ne", "%al"); 
 					   Binop("cmp", L 0, snd); 
 					   Set("ne", "%dl");
 					   Binop("&&", edx, eax);
-					   Mov(eax, res)]
+					   Mov(eax, fst)]
 			| _ -> failwith "Not yet supported"  
-			in env, insn
-    in  	
-    let env, asm' = compile env code' in
-    env, asm @ asm'
+            in  	
+            let env, asm' = compile env code' in
+            env, asm @ asm'
 (* A set of strings *)           
 module S = Set.Make (String)
 
@@ -183,7 +185,7 @@ class env =
     method pop2 = let x::y::stack' = stack in x, y, {< stack = stack' >}
 
     (* registers a global variable in the environment *)
-    method global x  = {< globals = S.add ("global_" ^ x) globals >}
+    method global x  = {< globals = S.add (self#loc  x) globals >}
 
     (* gets the number of allocated stack slots *)
     method allocated = stack_slots
